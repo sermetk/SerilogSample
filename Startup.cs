@@ -1,4 +1,10 @@
+using System.ComponentModel.DataAnnotations;
+using System.IO;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,10 +28,30 @@ namespace SerilogSample
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
-            app.UseMiddleware(typeof(ExceptionMiddleware));
+            app.UseExceptionHandler(errorApp =>
+            {
+                errorApp.Run(async context =>
+                {
+                    string result;
+                    var exceptionHandlerPathFeature = context.Features.Get<IExceptionHandlerPathFeature>();
+                    if (exceptionHandlerPathFeature?.Error is ValidationException vex)
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.NonAuthoritativeInformation;
+                        result = vex.Message;
+                    }
+                    else
+                    {
+                        context.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                        result = "Unexpected error";
+                    }
+                    context.Response.ContentType = "application/json";
+                    var response = result;
+                    var json = JsonSerializer.Serialize(response);
+                });
+            });
             app.UseSerilogRequestLogging(options =>
             {
-                options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+                options.EnrichDiagnosticContext = async (diagnosticContext, httpContext) =>
                 {
                     diagnosticContext.Set("RequestHeaders", httpContext.Request.Headers);
                 };
