@@ -54,6 +54,9 @@ namespace SerilogSample
                 options.EnrichDiagnosticContext = async (diagnosticContext, httpContext) =>
                 {
                     diagnosticContext.Set("RequestHeaders", httpContext.Request.Headers);
+                    using var reader = new StreamReader(httpContext.Request.Body, Encoding.UTF8);
+                    var body = await reader.ReadToEndAsync();
+                    diagnosticContext.Set("RequestBody", body);
                 };
             });
             app.UseHttpsRedirection();
